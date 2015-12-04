@@ -1,0 +1,4 @@
+# will be ignored:
+*.user*
+*.priv
+*.pri
