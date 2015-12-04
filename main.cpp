@@ -1,7 +1,7 @@
-//:description In this proj are tested the following functionalitues:
+//:description In this proj are tested the following functionalities:
 // can vector work properly if it is created with reserve and then overwritten
 // by memcpy
-//#define VECTOR_RESERVE_TEST
+
 #define THREADS_SORT_TIME
 
 #include <iostream>
@@ -9,26 +9,14 @@
 #include <stdint.h>
 #include <conio.h>
 #include <vector>
-using namespace std;
-using std::cout;
-using std::cin;
-using std::endl;
-
-
-
 #include <atomic>
 #include <thread>
-//#include <assert.h>
-//std::atomic<bool> x, y;
-//std::atomic<int> z;
+using namespace std;
 
 //for x86_64 architecture
 #ifdef _WIN32                //  Windows
 #include <intrin.h>
-//uint64_t rdtsc()
-//{
-//	return __rdtsc();
-//}
+
 unsigned long long rdtsc()
 {
     return __rdtsc();
@@ -60,7 +48,7 @@ uint64_t rdtsc()
             cout << uiTicks << endl; \
     }\
     outV = uiAverage / nCount; \
-    cout << "=== " << ExprText << " average == " << uiAverage / nCount << "\n\n"; \
+    cout << "=== " << ExprText << " average == " << uiAverage / nCount << "\n"; \
 }
 
 
@@ -106,10 +94,194 @@ public:
 };
 #endif
 
+struct Data{
+    int * m_pAr;
+    static int nSize;
+    static HANDLE hEvent;    
+};
+
+HANDLE Data::hEvent;
+int Data::nSize;
+
+
+void VectorReserveTest();
+void DeducePointerTypeFromVirtualFunc();
+
+// tools used for threads/processes times test
+void InMainSort(int * pAllAr, int nSize, int nTHREADS_COUNT);
+void Init(int * pAr, int nSize);
+void Show(int * pAr, int nSize);
+void Sort(int * pAr, int nSize);
+DWORD WINAPI ThreadFunc(void * pV);
+
+// current tests
+//#define T1_BothSortFunc(a) a;
+#define T1_BothSortFunc(a)
+void T1_Func(int * pForThreadsAr, int * pForMain, int nSize, int nTHREADS_COUNT);
+
+int main()
+{   
+    srand((unsigned int) time(0));
+    //VectorReserveTest();
+    //DeducePointerTypeFromVirtualFunc();
+    // return 0;
+
+// //////////////////////////////////////////////////////////////////
+// threads work
+
+    int nTHREADS_COUNT, nSize;
+    cout<<"Enter count of threads:"<<endl;
+    cout<<"(The program will output performance from 1 to \"count \" of threads)"<<endl;
+    cin>>nTHREADS_COUNT;
+    cout<<"Enter array size (portion for 1 thread):"<<endl;
+    cout<<"(nTotalArraySize = nSize * nThreadsCount)"<<endl;
+    cin>>nSize;
+
+
+    //HANDLE hStartProcEv = CreateEvent(0, TRUE, FALSE, L"ToStartAllProcesses");
+    //SetEvent(hStartProcEv);
+
+    Data::nSize = nSize;
+    Data::hEvent = CreateEvent(NULL, TRUE, FALSE, L"To_start_THREADS_COUNT_threads");
+    cout<<"Your CPU has "<<std::thread::hardware_concurrency()<<" kernels "<<endl;
+
+    for(int i = 0; i < nTHREADS_COUNT; ++i)
+    {
+        char pText[8] = "threads";
+        if(0 == i)
+            pText[6] = 0;
+        cout<<"====== performance of "<<i + 1<<" "<<pText <<" =============="<<endl;
+        int * pForMain      = new int[nSize * nTHREADS_COUNT];
+        int * pForThreadsAr = new int[nSize * nTHREADS_COUNT];
+        Init(pForThreadsAr, nSize * nTHREADS_COUNT);
+        memcpy(pForMain, pForThreadsAr, sizeof(int) * nSize * nTHREADS_COUNT);
+
+                                                                                        T1_BothSortFunc(T1_Func(pForThreadsAr, pForMain, nSize, nTHREADS_COUNT); break;)
+        Data * pDataAr = new Data[nTHREADS_COUNT];
+        HANDLE * phThAr = new HANDLE[nTHREADS_COUNT];
+        for(int j = 0; j < nTHREADS_COUNT; ++j)
+        {
+            pDataAr[j].m_pAr = pForThreadsAr + nSize * j;
+            phThAr[j] = CreateThread(0, 0, ThreadFunc, pDataAr + j, 0, 0);
+        }
+        int nCount = 1;
+        unsigned long long dStartTime, dFinTime, dThDiff,  dMainSortTime;
+
+        EXPR_TIME_CONS_AVER_OUT(nCount, InMainSort(pForMain, nSize, nTHREADS_COUNT), false, dMainSortTime);
+        //cout<<"dMainSortTime = "<<dMainSortTime<<endl;
+
+        // time before threads start
+        cout<<"To start "<<i+1<<" "<<pText<<" - press any key"<<endl;
+        if(0 == i)
+            _getch();
+        SetEvent(Data::hEvent);
+
+        dStartTime = rdtsc();
+        WaitForMultipleObjects(nTHREADS_COUNT, phThAr, TRUE, INFINITE);
+        dFinTime = rdtsc();
+        dThDiff = dFinTime - dStartTime;
+        if(dThDiff > dMainSortTime)
+            cout<<" main is faster  on "<<dThDiff - dMainSortTime<<" ticks"<<endl;
+        else
+            cout<<" threads are faster on "<<dMainSortTime - dThDiff<<" ticks"<<endl;
+        cout<<"ticks per data portion = "<<dThDiff<<" / "<<nSize<<" = "<< dThDiff / (double)nSize <<endl;
+        cout<<"total "<<i + 1<<" "<<pText<<" time =  "<<dThDiff<<endl;
+
+
+
+        delete [] pForMain;
+        delete [] pForThreadsAr;
+        delete [] pDataAr;
+        for(int j = 0; j < nTHREADS_COUNT; ++j)
+            CloseHandle(phThAr[j]);
+        delete [] phThAr;
+    }
+
+    return 0;
+}
+
+
+void VectorReserveTest()
+{
+    int nCount;
+    cout<<"Enter vector size"<<endl;
+    cin>>nCount;
+    int * pAr = new int[nCount];
+    for(int i = 0; i < nCount; ++i)
+        pAr[i] = rand() % 31;
+    for(int i = 0; i < nCount; ++i)
+        cout<<pAr[i]<<' ';
+    cout<<endl;
+
+    vector<int> vc;
+    vc.resize(nCount);
+    memcpy(&vc[0], pAr, sizeof(int)* nCount);
+    delete [] pAr;
+
+    for(int i = 0; i < 3; ++i)
+        vc.push_back(i + 1);
+    for(int i = 0, nSize = vc.size(); i < nSize; ++i)
+        cout<<vc[i]<<' ';
+    cout<<endl;
+}
+void DeducePointerTypeFromVirtualFunc()
+{
+    // task: how to call virtual function to let callee know,
+    // from what pointer was call made.
+#ifdef DEDUCE_POINTER_TYPE_FROM_VIRTFUNC
+    C c;
+    A * pA = &c;
+    B * pB = &c;
+    pA->Func();
+    pB->Func();
+#endif
+}
+
+
+void InMainSort(int * pAllAr, int nSize, int nTHREADS_COUNT)
+{
+    // this function sorts Total array, intended for THREADS_COUNT threads
+    // dividing it on THREADS_COUNT parts, not to move too much elements
+    // imitating division of all job on several threads
+
+    // nSize - size of ONE portion of Total array (one thread job)
+    // total memory was created as nSize * nTHREADS_COUNT elements.
+    // not to deal with possible remainder of division:
+    // nSize = nTotalSize / nTHREADS_COUNT;
+
+    int nMin, iMinInd;
+    int * pAr;  // current array
+    for(int i0 = 0; i0 < nTHREADS_COUNT; ++i0)
+    {
+        pAr = pAllAr + nSize * i0;
+        for(int i = 0; i < nSize; ++i)
+        {
+            nMin = pAr[i];
+            iMinInd = i;
+            for(int j = i + 1; j < nSize; ++j)
+                if(pAr[j] < nMin)
+                {
+                    nMin = pAr[j];
+                    iMinInd = j;
+                }
+            pAr[iMinInd] = pAr[i];
+            pAr[i] = nMin;
+        }
+    }
+}
+
+DWORD WINAPI ThreadFunc(void * pV)
+{
+    Data * pData = (Data*)pV;
+    WaitForSingleObject(pData->hEvent, INFINITE);
+    Sort(pData->m_pAr, pData->nSize);
+
+    return 0;
+}
 void Init(int * pAr, int nSize)
 {
     for(int i = 0; i < nSize; ++i)
-        pAr[i] = rand() % 100;//* rand();
+        pAr[i] = rand() % 100;
 }
 
 void Show(int * pAr, int nSize)
@@ -136,162 +308,15 @@ void Sort(int * pAr, int nSize)
         pAr[i] = nMin;
     }
 }
-
-#define TIMES_AR_SIZE 10
-struct Data{
-    int * m_pAr;
-    static int nSize;
-    static HANDLE hEvent;
-    uint64_t uTimeAr[TIMES_AR_SIZE];
-};
-
-HANDLE Data::hEvent;
-int Data::nSize;
-
-DWORD WINAPI ThreadFunc(void * pV)
+// //////////////////////////  TESTS
+void T1_Func(int * pForThreadsAr, int * pForMain, int nSize, int nTHREADS_COUNT)
 {
-    Data * pData = (Data*)pV;
-    WaitForSingleObject(pData->hEvent, INFINITE);
-    pData->uTimeAr[0] = rdtsc();
-    Sort(pData->m_pAr, pData->nSize);
-    pData->uTimeAr[1] = rdtsc();
-
-    return 0;
-}
-#define THREADS_COUNT 4
-
-// this function sorts Total array, intended for THREADS_COUNT threads
-// dividing it on THREADS_COUNT parts, not to move too much elements
-// imitating division of all job on several threads
-void InMainSort(int * pAllAr, int nSize)
-{
-    // nSize - size of ONE portion of Total array (one thread job)
-    int nMin, iMinInd;
-    int * pAr;  // current array
-    for(int i0 = 0; i0 < THREADS_COUNT; ++i0)
-    {
-        pAr = pAllAr + nSize * i0;
-        for(int i = 0; i < nSize; ++i)
-        {
-            nMin = pAr[i];
-            iMinInd = i;
-            for(int j = i + 1; j < nSize; ++j)
-                if(pAr[j] < nMin)
-                {
-                    nMin = pAr[j];
-                    iMinInd = j;
-                }
-            pAr[iMinInd] = pAr[i];
-            pAr[i] = nMin;
-        }
-    }
+    cout<<"==== Sort :"<<endl;
+    Sort(pForThreadsAr, nSize * nTHREADS_COUNT);
+    Show(pForThreadsAr, nSize * nTHREADS_COUNT);
+    cout<<"==== InMainSort :"<<endl;
+    InMainSort(pForMain, nSize, nTHREADS_COUNT);
+    Show(pForMain, nSize * nTHREADS_COUNT);
 }
 
-
-int main()
-{   
-#ifdef VECTOR_RESERVE_TEST
-    int nCount;
-    cout<<"Enter vector size"<<endl;
-    cin>>nCount;
-    int * pAr = new int[nCount];
-    for(int i = 0; i < nCount; ++i)
-        pAr[i] = rand() % 31;
-    for(int i = 0; i < nCount; ++i)
-        cout<<pAr[i]<<' ';
-    cout<<endl;
-
-    vector<int> vc;
-    vc.resize(nCount);
-    memcpy(&vc[0], pAr, sizeof(int)* nCount);
-    delete [] pAr;
-
-    for(int i = 0; i < 3; ++i)
-        vc.push_back(i + 1);
-    for(int i = 0, nSize = vc.size(); i < nSize; ++i)
-        cout<<vc[i]<<' ';
-    cout<<endl;
-
-    return 0;
-#endif
-    // task: how to call virtual function to let callee know,
-    // from what pointer was call made.
-//    C c;
-//    A * pA = &c;
-//    B * pB = &c;
-//    pA->Func();
-//    pB->Func();
-    // ////////////////////////////////////
-// //////////////////////////////////////////////////////////////////
-// threads work
-#ifdef THREADS_SORT_TIME
-    int nSize;
-    cout<<"Enter size "<<endl;
-    cin>>nSize; //20000
-    Data::nSize = nSize;
-
-    //int * pForMain      = new int[nSize * THREADS_COUNT];
-    int * pForThreadsAr = new int[nSize * THREADS_COUNT];
-    Init(pForThreadsAr, nSize * THREADS_COUNT);
-    //memcpy(pForMain, pForThreadsAr, sizeof(int) * nSize * THREADS_COUNT);
-    HANDLE hStartProcEv = CreateEvent(0, TRUE, FALSE, L"ToStartAllProcesses");
-    //SetEvent(hStartProcEv);
-
-// COMPARING TWO SORT FUNCTIONS
-//    int nCount = 1;
-//    unsigned long long dAverTime1, dAverTime2;
-//    EXPR_TIME_CONS_AVER_OUT(nCount, Sort(pForThreadsAr, nSize * THREADS_COUNT), true, dAverTime1);
-//    cout<<"1 average time = "<<dAverTime1<<endl;
-//    EXPR_TIME_CONS_AVER_OUT(nCount, InMainSort(pForMain, nSize), true, dAverTime2);
-//    cout<<"2 average time = "<<dAverTime2<<endl;
-//    if(dAverTime1 > dAverTime2)
-//        cout<<" 1 > 2  "<<dAverTime1 - dAverTime2<<endl;
-//    else
-//        cout<<" 1 <= 2  "<<dAverTime2 - dAverTime1<<endl;
-
-// COMPARING Sort in main with sort dividing array on THREADS_COUNT parts
-
-    Data::hEvent = CreateEvent(NULL, TRUE, FALSE, L"To_start_THREADS_COUNT_threads");
-    Data * pDataAr = new Data[THREADS_COUNT];
-    HANDLE * phThAr = new HANDLE[THREADS_COUNT];
-    for(int i = 0; i < THREADS_COUNT; ++i)
-    {
-        pDataAr[i].m_pAr = pForThreadsAr + nSize * i;
-        phThAr[i] = CreateThread(0, 0, ThreadFunc, pDataAr +i, 0, 0);
-    }
-    //int nCount = 1;
-    unsigned long long dStartTime, dFinTime, dThDiff,  dMainSortTime;
-
-//    EXPR_TIME_CONS_AVER_OUT(nCount, InMainSort(pForMain, nSize), true, dMainSortTime);
-//    cout<<"dMainSortTime = "<<dMainSortTime<<endl;
-
-    // time before threads start
-    dStartTime = rdtsc();
-    SetEvent(Data::hEvent);
-    WaitForMultipleObjects(THREADS_COUNT, phThAr, TRUE, INFINITE);
-    dFinTime = rdtsc();
-    dThDiff = dFinTime - dStartTime;
-//    if(dThDiff > dMainSortTime)
-//        cout<<" main is faster "<<dThDiff - dMainSortTime<<endl;
-//    else
-//        cout<<" threads are faster  "<<dMainSortTime - dThDiff<<endl;
-
-    cout<<"ticks per int = "<<dThDiff / nSize <<endl;
-    cout<<"total "<<THREADS_COUNT<<" threads time =  "<<dThDiff<<endl;
-
-
-
-    //delete [] pForMain;
-    delete [] pForThreadsAr;
-    delete [] pDataAr;
-    delete [] phThAr;
-
-    // /////////////////////////////
-#endif //THREADS_SORT_TIME
-//    int nCount = 10;
-//    unsigned long long dAverTime;
-//    EXPR_TIME_CONS_AVER_OUT(nCount, cout << "Hello World!" << endl, true, dAverTime);
-//    cout<<"average time = "<<dAverTime<<endl;
-    return 0;
-}
-
+// end of TESTS
